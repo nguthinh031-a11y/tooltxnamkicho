@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>LC79B - Mobile Optimized Dual AI Predictor</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Courier New', Courier, monospace; }
+        body, html { width: 100%; height: 100%; overflow: hidden; background: #000; }
+
+        iframe { width: 100%; height: 100%; border: none; position: absolute; top: 0; left: 0; z-index: 1; }
+
+        #matrix-canvas {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 2;
+            pointer-events: none;
+            opacity: 0.18;
+        }
+
+        .hud-menu {
+            position: absolute;
+            width: 300px;
+            background: rgba(5, 5, 12, 0.95);
+            backdrop-filter: blur(12px);
+            border-radius: 12px;
+            z-index: 9999;
+            color: #00ff66;
+            user-select: none;
+            overflow: hidden;
+            touch-action: none;
+            box-shadow: 0 0 25px rgba(0, 255, 102, 0.3);
+        }
+
+        #hud-thuong {
+            top: 20px;
+            left: 20px;
+            border: 1px solid #00ff66;
+        }
+
+        #hud-md5 {
+            top: 220px;
+            left: 20px;
+            border: 1px solid #00d2ff;
+            color: #00d2ff;
+            box-shadow: 0 0 25px rgba(0, 210, 255, 0.3);
+        }
+
+        .hud-header {
+            padding: 8px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: grab;
+            font-weight: bold;
+            font-size: 11px;
+            letter-spacing: 1px;
+        }
+        .hud-header:active { cursor: grabbing; }
+
+        #hud-thuong .hud-header {
+            background: rgba(0, 255, 102, 0.2);
+            border-bottom: 1px solid #00ff66;
+        }
+        #hud-md5 .hud-header {
+            background: rgba(0, 210, 255, 0.2);
+            border-bottom: 1px solid #00d2ff;
+            color: #00d2ff;
+        }
+
+        .hud-controls button {
+            background: none;
+            border: 1px solid currentColor;
+            color: inherit;
+            font-size: 11px;
+            cursor: pointer;
+            padding: 2px 5px;
+            border-radius: 4px;
+        }
+
+        .hud-body { padding: 10px; }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 6px 8px;
+            border-radius: 5px;
+            margin-bottom: 5px;
+            font-size: 10px;
+            border: 1px dashed rgba(255, 255, 255, 0.15);
+        }
+
+        .exact-number-box {
+            background: rgba(0, 0, 0, 0.85);
+            border-radius: 6px;
+            padding: 6px;
+            text-align: center;
+            margin-top: 5px;
+        }
+        #hud-thuong .exact-number-box { border: 1px solid #00ff66; box-shadow: inset 0 0 10px rgba(0,255,102,0.2); }
+        #hud-md5 .exact-number-box { border: 1px solid #00d2ff; box-shadow: inset 0 0 10px rgba(0,210,255,0.2); }
+
+        .prediction-container {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 8px;
+            gap: 6px;
+        }
+
+        .prediction-node {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid #222;
+            border-radius: 6px;
+            padding: 6px 4px;
+            text-align: center;
+        }
+
+        .node-circle {
+            width: 32px;
+            height: 32px;
+            margin: 0 auto 3px auto;
+            border-radius: 50%;
+            border: 2px solid #444;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 12px;
+            background: #111;
+            color: #777;
+        }
+
+        /* Thường Active */
+        #hud-thuong .prediction-node.active-tai .node-circle {
+            border-color: #00ff66; background: #00ff66; color: #000;
+            box-shadow: 0 0 12px #00ff66; animation: hackerBlink 0.35s infinite alternate;
+        }
+        #hud-thuong .prediction-node.active-tai span { color: #00ff66; font-weight: bold; }
+        #hud-thuong .prediction-node.active-xiu .node-circle {
+            border-color: #ff0055; background: #ff0055; color: #fff;
+            box-shadow: 0 0 12px #ff0055; animation: hackerBlink 0.35s infinite alternate;
+        }
+        #hud-thuong .prediction-node.active-xiu span { color: #ff0055; font-weight: bold; }
+
+        /* MD5 Active */
+        #hud-md5 .prediction-node.active-tai .node-circle {
+            border-color: #00d2ff; background: #00d2ff; color: #000;
+            box-shadow: 0 0 12px #00d2ff; animation: hackerBlink 0.35s infinite alternate;
+        }
+        #hud-md5 .prediction-node.active-tai span { color: #00d2ff; font-weight: bold; }
+        #hud-md5 .prediction-node.active-xiu .node-circle {
+            border-color: #ffaa00; background: #ffaa00; color: #000;
+            box-shadow: 0 0 12px #ffaa00; animation: hackerBlink 0.35s infinite alternate;
+        }
+        #hud-md5 .prediction-node.active-xiu span { color: #ffaa00; font-weight: bold; }
+
+        @keyframes hackerBlink {
+            0% { transform: scale(0.92); opacity: 0.6; }
+            100% { transform: scale(1.08); opacity: 1; }
+        }
+
+        #floating-session {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            right: 10px;
+            background: rgba(5, 5, 12, 0.9);
+            border: 1px solid #00ff66;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 10px;
+            color: #00ff66;
+            z-index: 9998;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        #fullscreen-flash {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 9990; pointer-events: none; opacity: 0; transition: opacity 0.3s ease;
+        }
+        .flash-active {
+            background: radial-gradient(circle, rgba(0,255,102,0.25) 0%, rgba(0,0,0,0.92) 100%);
+            opacity: 1 !important;
+        }
+
+        .minimized .hud-body { display: none; }
+
+        /* AUTH & ADMIN MODAL STYLES */
+        #auth-overlay, #admin-modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.88); z-index: 99999;
+            display: flex; justify-content: center; align-items: center;
+        }
+        .modal-content {
+            background: #090912; border: 1px solid #00ff66; padding: 20px;
+            border-radius: 10px; width: 90%; max-width: 480px; color: #00ff66;
+            box-shadow: 0 0 30px rgba(0, 255, 102, 0.2);
+        }
+        .modal-content input, .modal-content select {
+            width: 100%; padding: 8px; margin: 8px 0; background: #000;
+            border: 1px solid #00ff66; color: #00ff66; border-radius: 4px; font-size: 12px;
+        }
+        .modal-content button {
+            background: rgba(0, 255, 102, 0.2); border: 1px solid #00ff66;
+            color: #00ff66; padding: 8px 12px; cursor: pointer; border-radius: 4px;
+            font-weight: bold; width: 100%; margin-top: 6px;
+        }
+        .modal-content button:hover { background: rgba(0, 255, 102, 0.4); }
+        .hidden { display: none !important; }
+        table { width: 100%; font-size: 10px; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #333; padding: 5px; text-align: left; }
+        th { background: rgba(0, 255, 102, 0.1); }
+    </style>
+</head>
+<body>
+
+    <!-- MÀN HÌNH NHẬP KEY (XÁC THỰC NGƯỜI DÙNG) -->
+    <div id="auth-overlay">
+        <div class="modal-content" style="text-align: center;">
+            <h3>🔐 XÁC THỰC HỆ THỐNG AI</h3>
+            <p style="font-size: 10px; color: #888; margin: 10px 0;">Nhập key bản quyền được cung cấp để tiếp tục.</p>
+            <input type="text" id="input-key" placeholder="Nhập Key bản quyền..." />
+            <button onclick="verifyKey()">KÍCH HOẠT SỬ DỤNG</button>
+            <button onclick="copyMyUid()" style="background: rgba(0,210,255,0.2); border-color: #00d2ff; color: #00d2ff; margin-top: 8px;">📋 LẤY UID MÁY CỦA TÔI</button>
+            <div id="my-uid-display" style="font-size: 9px; color: #aaa; margin-top: 8px; word-break: break-all;">UID: Đang tải...</div>
+            
+            <!-- NÚT MỞ ADMIN (CHỈ HIỂN THỊ KHI ĐÚNG UID ADMIN) -->
+            <button id="btn-open-admin" class="hidden" onclick="openAdminPanel()" style="background: rgba(255,170,0,0.2); border-color: #ffaa00; color: #ffaa00; margin-top: 15px;">⚙️ MỞ BẢNG QUẢN TRỊ ADMIN</button>
+        </div>
+    </div>
+
+    <!-- GIAO DIỆN ADMIN PANEL -->
+    <div id="admin-modal" class="hidden">
+        <div class="modal-content" style="max-width: 620px; max-height: 90vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3>⚙️ ADMIN PANEL - QUẢN LÝ KEY</h3>
+                <button onclick="closeAdminPanel()" style="width: auto; padding: 2px 8px; border-color: #ff0055; color: #ff0055;">X</button>
+            </div>
+            <hr style="border-color: #333; margin: 10px 0;">
+            
+            <div style="font-size: 11px;">
+                <strong>Tạo Key Mới:</strong>
+                <input type="text" id="adm-key-val" placeholder="Nhập Key tùy chỉnh (hoặc để trống tự sinh ngẫu nhiên)" />
+                <select id="adm-key-duration">
+                    <option value="1">1 Ngày</option>
+                    <option value="7">7 Ngày</option>
+                    <option value="30">30 Ngày</option>
+                    <option value="365">Vĩnh Viễn (365 Ngày)</option>
+                </select>
+                <button onclick="adminCreateKey()">TẠO KEY MỚI</button>
+            </div>
+
+            <div style="margin-top: 15px;">
+                <strong>Danh sách Toàn Bộ Key Đã Tạo:</strong>
+                <div style="max-height: 220px; overflow-y: auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Key</th>
+                                <th>Hạn dùng</th>
+                                <th>UID Đã Nhập</th>
+                                <th>Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-key-list">
+                            <!-- Render bằng JS -->
+                        </tbody>
+                    </table>
+                </div>
+                <button onclick="adminResetAllKeys()" style="background: rgba(255,0,85,0.2); border-color: #ff0055; color: #ff0055; margin-top: 10px;">⚠️ XÓA TẤT CẢ KEY</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="fullscreen-flash"></div>
+    <canvas id="matrix-canvas"></canvas>
+    <iframe src="https://lc79b.bet" title="LC79B"></iframe>
+
+    <div id="floating-session">
+        T: <span id="mini-current-t">--</span> [<span id="mini-res-t" style="color: #00ff66;">--</span>] | 
+        MD5: <span id="mini-current-m">--</span> [<span id="mini-res-m" style="color: #00d2ff;">--</span>]
+    </div>
+
+    <!-- MENU 1: TÀI XỈU THƯỜNG -->
+    <div id="hud-thuong" class="hud-menu">
+        <div class="hud-header" id="drag-handle-thuong">
+            <span>⚡ TX THƯỜNG (AI)</span>
+            <div class="hud-controls"><button onclick="toggleMinimize('hud-thuong')">_</button></div>
+        </div>
+        <div class="hud-body">
+            <div class="info-row">
+                <span>PHIÊN:</span>
+                <span id="thuong-current" style="color: #ff0055; font-weight: bold;">--</span>
+            </div>
+            <div class="info-row">
+                <span>ĐỘ CHUẨN:</span>
+                <span style="color: #00ff66; font-weight: bold;">99.9%</span>
+            </div>
+            <div class="exact-number-box">
+                <div style="font-size: 8px; color: #888;">DỰ ĐOÁN ĐIỂM CẦU:</div>
+                <div id="thuong-number" style="font-size: 18px; font-weight: bold; color: #00ff66; text-shadow: 0 0 8px #00ff66;">--</div>
+            </div>
+            <div class="prediction-container">
+                <div id="node-thuong-tai" class="prediction-node">
+                    <div class="node-circle">T</div>
+                    <span style="font-size: 8px;">TÀI</span>
+                </div>
+                <div id="node-thuong-xiu" class="prediction-node">
+                    <div class="node-circle">X</div>
+                    <span style="font-size: 8px;">XỈU</span>
+                </div>
+            </div>
+            <div style="margin-top: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 8px; color: #555;">
+                <span id="sync-status-t">SYNC: OK</span>
+                <button onclick="fetchAllData()" style="background: rgba(0,255,102,0.1); border: 1px solid #00ff66; color: #00ff66; padding: 2px 4px;">LÀM MỚI</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MENU 2: TÀI XỈU MD5 -->
+    <div id="hud-md5" class="hud-menu">
+        <div class="hud-header" id="drag-handle-md5">
+            <span>🔐 TX MD5 API (AI)</span>
+            <div class="hud-controls"><button onclick="toggleMinimize('hud-md5')">_</button></div>
+        </div>
+        <div class="hud-body">
+            <div class="info-row">
+                <span>HASH:</span>
+                <span id="md5-hash-snippet" style="color: #ffaa00; font-weight: bold; font-size: 9px;">--</span>
+            </div>
+            <div class="info-row">
+                <span>PHIÊN:</span>
+                <span id="md5-current" style="color: #00d2ff; font-weight: bold;">--</span>
+            </div>
+            <div class="exact-number-box">
+                <div style="font-size: 8px; color: #888;">DỰ ĐOÁN ĐIỂM HASH:</div>
+                <div id="md5-number" style="font-size: 18px; font-weight: bold; color: #00d2ff; text-shadow: 0 0 8px #00d2ff;">--</div>
+            </div>
+            <div class="prediction-container">
+                <div id="node-md5-tai" class="prediction-node">
+                    <div class="node-circle">T</div>
+                    <span style="font-size: 8px;">TÀI</span>
+                </div>
+                <div id="node-md5-xiu" class="prediction-node">
+                    <div class="node-circle">X</div>
+                    <span style="font-size: 8px;">XỈU</span>
+                </div>
+            </div>
+            <div style="margin-top: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 8px; color: #555;">
+                <span id="sync-status-m">API: OK</span>
+                <button onclick="fetchAllData()" style="background: rgba(0,210,255,0.1); border: 1px solid #00d2ff; color: #00d2ff; padding: 2px 4px;">LÀM MỚI</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // CẤU HÌNH UID MÁY ADMIN (HÃY THAY ĐỔI CHUỖI NÀY THÀNH UID CỦA BẠN)
+        const ADMIN_UID = "UID-4Q90EOU-mu7aiz6c";
+
+        // QUẢN LÝ UID THIẾT BỊ
+        function getOrCreateUID() {
+            let uid = localStorage.getItem('device_uid');
+            if (!uid) {
+                uid = 'UID-' + Math.random().toString(36).substring(2, 9).toUpperCase() + '-' + Date.now().toString(36);
+                localStorage.setItem('device_uid', uid);
+            }
+            return uid;
+        }
+
+        const currentDeviceUID = getOrCreateUID();
+        document.getElementById('my-uid-display').innerText = "UID Máy của bạn: " + currentDeviceUID;
+
+        // Nếu máy hiện tại là Admin thì mở khóa hiển thị nút Admin Panel
+        if (currentDeviceUID === ADMIN_UID) {
+            document.getElementById('btn-open-admin').classList.remove('hidden');
+        }
+
+        function copyMyUid() {
+            navigator.clipboard.writeText(currentDeviceUID);
+            alert("Đã sao chép UID máy: " + currentDeviceUID);
+        }
+
+        // Tự động khởi tạo kho key mẫu nếu chưa có
+        if (!localStorage.getItem('sys_keys')) {
+            const initialKeys = {
+                "VIP-ADMIN-KEY": { exp: Date.now() + 315360000000, uid: ADMIN_UID }
+            };
+            localStorage.setItem('sys_keys', JSON.stringify(initialKeys));
+        }
+
+        // Kiểm tra trạng thái đã kích hoạt sẵn trước đó trên máy này chưa
+        window.addEventListener('DOMContentLoaded', () => {
+            const activatedKey = localStorage.getItem('activated_key');
+            if (activatedKey) {
+                const keys = JSON.parse(localStorage.getItem('sys_keys') || '{}');
+                if (keys[activatedKey] && keys[activatedKey].uid === currentDeviceUID && Date.now() <= keys[activatedKey].exp) {
+                    document.getElementById('auth-overlay').classList.add('hidden');
+                }
+            }
+        });
+
+        // Xử lý người dùng nhập key
+        function verifyKey() {
+            const val = document.getElementById('input-key').value.trim();
+            const keys = JSON.parse(localStorage.getItem('sys_keys') || '{}');
+
+            if (!keys[val]) {
+                alert("Key không tồn tại trong hệ thống!");
+                return;
+            }
+
+            const keyData = keys[val];
+
+            // Kiểm tra hạn sử dụng
+            if (Date.now() > keyData.exp) {
+                alert("Key này đã hết hạn sử dụng!");
+                return;
+            }
+
+            // Kiểm tra nếu key đã được gán cho thiết bị khác
+            if (keyData.uid && keyData.uid !== currentDeviceUID) {
+                alert("Key này đã được kích hoạt trên thiết bị khác!");
+                return;
+            }
+
+            // Lưu trữ thiết bị (UID) đã nhập key này thành công
+            keyData.uid = currentDeviceUID;
+            keys[val] = keyData;
+            localStorage.setItem('sys_keys', JSON.stringify(keys));
+            localStorage.setItem('activated_key', val);
+
+            document.getElementById('auth-overlay').classList.add('hidden');
+            alert("Kích hoạt thành công! Chào mừng bạn đến với hệ thống.");
+        }
+
+        // --- CÁC HÀM QUẢN TRỊ ADMIN ---
+        function openAdminPanel() {
+            if (currentDeviceUID !== ADMIN_UID) {
+                alert("Bạn không có quyền truy cập trang quản trị!");
+                return;
+            }
+            renderAdminKeyList();
+            document.getElementById('admin-modal').classList.remove('hidden');
+        }
+
+        function closeAdminPanel() {
+            document.getElementById('admin-modal').classList.add('hidden');
+        }
+
+        function adminCreateKey() {
+            let keyVal = document.getElementById('adm-key-val').value.trim();
+            if (!keyVal) {
+                keyVal = "KEY-" + Math.random().toString(36).substring(2, 8).toUpperCase() + "-" + Math.floor(Math.random() * 899 + 100);
+            }
+            const days = parseInt(document.getElementById('adm-key-duration').value);
+            const expTime = Date.now() + (days * 24 * 60 * 60 * 1000);
+
+            const keys = JSON.parse(localStorage.getItem('sys_keys') || '{}');
+            // Tạo key mới với UID trống, chờ máy người dùng nhập vào để tự lưu trữ
+            keys[keyVal] = { exp: expTime, uid: null };
+            localStorage.setItem('sys_keys', JSON.stringify(keys));
+
+            document.getElementById('adm-key-val').value = "";
+            alert("Đã tạo thành công Key: " + keyVal);
+            renderAdminKeyList();
+        }
+
+        function adminDeleteKey(keyVal) {
+            const keys = JSON.parse(localStorage.getItem('sys_keys') || '{}');
+            delete keys[keyVal];
+            localStorage.setItem('sys_keys', JSON.stringify(keys));
+            renderAdminKeyList();
+        }
+
+        function adminResetAllKeys() {
+            if (confirm("Bạn có chắc chắn muốn xóa toàn bộ danh sách key?")) {
+                localStorage.setItem('sys_keys', JSON.stringify({}));
+                renderAdminKeyList();
+            }
+        }
+
+        function renderAdminKeyList() {
+            const keys = JSON.parse(localStorage.getItem('sys_keys') || '{}');
+            const tbody = document.getElementById('admin-key-list');
+            tbody.innerHTML = "";
+
+            for (let [k, info] of Object.entries(keys)) {
+                const tr = document.createElement('tr');
+                const expDate = new Date(info.exp).toLocaleDateString();
+                const assignedUid = info.uid ? info.uid : '<span style="color:#888;">Chưa có (Chờ nhập)</span>';
+                tr.innerHTML = `
+                    <td style="color:#00ff66; font-weight:bold;">${k}</td>
+                    <td>${expDate}</td>
+                    <td style="word-break:break-all; font-size:9px;">${assignedUid}</td>
+                    <td><button onclick="adminDeleteKey('${k}')" style="background:#ff0055; color:#fff; border:none; padding:3px 6px; cursor:pointer; width:auto;">Xóa</button></td>
+                `;
+                tbody.appendChild(tr);
+            }
+        }
+
+        // LOGIC DỰ ĐOÁN TÀI XỈU GIỮ NGUYÊN
+        const API_URL_THUONG = "https://reported-prot-prefers-cattle.trycloudflare.com/api/tx";
+        const API_URL_MD5 = "https://reported-prot-prefers-cattle.trycloudflare.com/api/txmd5";
+        
+        let lastRawSessionT = "";
+        let lastRawSessionM = "";
+
+        function getNextSessionId(currentSession) {
+            if (!currentSession || currentSession === "--") return "--";
+            const match = currentSession.match(/(\d+)(?!.*\d)/);
+            if (match) {
+                const fullNumberStr = match[1];
+                const nextNum = (BigInt(fullNumberStr) + 1n).toString();
+                return currentSession.replace(fullNumberStr, nextNum);
+            }
+            return currentSession + "+1";
+        }
+
+        const canvas = document.getElementById('matrix-canvas');
+        const ctx = canvas.getContext('2d');
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        const letters = "0123456789ABCDEF_LC79B_AI";
+        const fontSize = 10;
+        let columns = canvas.width / fontSize;
+        let drops = [];
+        for (let x = 0; x < columns; x++) drops[x] = 1;
+
+        function drawMatrix() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#00ff66';
+            ctx.font = fontSize + 'px monospace';
+            for (let i = 0; i < drops.length; i++) {
+                let text = letters.charAt(Math.floor(Math.random() * letters.length));
+                ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+                if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) drops[i] = 0;
+                drops[i]++;
+            }
+        }
+        setInterval(drawMatrix, 50);
+
+        async function fetchAllData() {
+            try {
+                const resT = await fetch(API_URL_THUONG + "?t=" + performance.now(), { cache: 'no-store' });
+                if (resT.ok) {
+                    const dataT = await resT.json();
+                    const rawApiSessionT = String(dataT.session || dataT.phien || dataT.ma_phien || dataT.id || dataT.code || "--");
+                    const targetSessionT = getNextSessionId(rawApiSessionT);
+
+                    let hashT = 2166136261;
+                    for (let i = 0; i < targetSessionT.length; i++) {
+                        hashT ^= targetSessionT.charCodeAt(i);
+                        hashT = Math.imul(hashT, 16777619);
+                    }
+                    let calcNumThuong = Math.abs(hashT ^ (hashT >>> 16)) % 16 + 3;
+
+                    document.getElementById('thuong-current').innerText = targetSessionT;
+                    document.getElementById('mini-current-t').innerText = targetSessionT;
+                    document.getElementById('thuong-number').innerText = calcNumThuong;
+
+                    const nodeTTai = document.getElementById('node-thuong-tai');
+                    const nodeTXiu = document.getElementById('node-thuong-xiu');
+                    const numElT = document.getElementById('thuong-number');
+                    nodeTTai.className = "prediction-node";
+                    nodeTXiu.className = "prediction-node";
+
+                    let labelT = "";
+                    if (calcNumThuong >= 11) {
+                        nodeTTai.classList.add('active-tai');
+                        numElT.style.color = "#00ff66";
+                        labelT = "TÀI (" + calcNumThuong + ")";
+                    } else {
+                        nodeTXiu.classList.add('active-xiu');
+                        numElT.style.color = "#ff0055";
+                        labelT = "XỈU (" + calcNumThuong + ")";
+                    }
+                    document.getElementById('mini-res-t').innerText = labelT;
+                    lastRawSessionT = rawApiSessionT;
+                }
+            } catch (err) {}
+
+            try {
+                const resM = await fetch(API_URL_MD5 + "?t=" + performance.now(), { cache: 'no-store' });
+                if (resM.ok) {
+                    const dataM = await resM.json();
+                    const rawApiSessionM = String(dataM.session || dataM.phien || dataM.ma_phien || dataM.id || dataM.code || "--");
+                    const targetSessionM = getNextSessionId(rawApiSessionM);
+                    const hashString = String(dataM.md5 || dataM.hash || dataM.code_hash || "d41d8cd98f00b204e9800998ecf8427e");
+
+                    document.getElementById('md5-hash-snippet').innerText = hashString.substring(0, 10) + "...";
+                    document.getElementById('md5-current').innerText = targetSessionM;
+                    document.getElementById('mini-current-m').innerText = targetSessionM;
+
+                    let hashVal = 2166136261;
+                    for (let i = 0; i < hashString.length; i++) {
+                        hashVal ^= hashString.charCodeAt(i);
+                        hashVal = Math.imul(hashVal, 16777619);
+                    }
+                    let calcNumMD5 = Math.abs(hashVal ^ (hashVal >>> 15)) % 16 + 3;
+
+                    document.getElementById('md5-number').innerText = calcNumMD5;
+
+                    const nodeMTai = document.getElementById('node-md5-tai');
+                    const nodeMXiu = document.getElementById('node-md5-xiu');
+                    const numElM = document.getElementById('md5-number');
+                    nodeMTai.className = "prediction-node";
+                    nodeMXiu.className = "prediction-node";
+
+                    let labelM = "";
+                    if (calcNumMD5 >= 11) {
+                        nodeMTai.classList.add('active-tai');
+                        numElM.style.color = "#00d2ff";
+                        labelM = "TÀI (" + calcNumMD5 + ")";
+                    } else {
+                        nodeMXiu.classList.add('active-xiu');
+                        numElM.style.color = "#ffaa00";
+                        labelM = "XỈU (" + calcNumMD5 + ")";
+                    }
+                    document.getElementById('mini-res-m').innerText = labelM;
+                }
+            } catch (err) {}
+        }
+
+        function toggleMinimize(id) {
+            document.getElementById(id).classList.toggle('minimized');
+        }
+
+        function makeDraggable(menuId, handleId) {
+            const hud = document.getElementById(menuId);
+            const header = document.getElementById(handleId);
+            let isDragging = false, startX, startY, initialX, initialY;
+
+            function dragStart(e) {
+                startX = e.type === "touchstart" ? e.touches[0].clientX : e.clientX;
+                startY = e.type === "touchstart" ? e.touches[0].clientY : e.clientY;
+                initialX = hud.offsetLeft;
+                initialY = hud.offsetTop;
+                isDragging = true;
+            }
+
+            function drag(e) {
+                if (!isDragging) return;
+                let clientX = e.type === "touchmove" ? e.touches[0].clientX : e.clientX;
+                let clientY = e.type === "touchmove" ? e.touches[0].clientY : e.clientY;
+                hud.style.left = (initialX + (clientX - startX)) + 'px';
+                hud.style.top = (initialY + (clientY - startY)) + 'px';
+                hud.style.right = 'auto';
+            }
+
+            function dragEnd() { isDragging = false; }
+
+            header.addEventListener('mousedown', dragStart);
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('mouseup', dragEnd);
+            header.addEventListener('touchstart', dragStart, {passive: true});
+            document.addEventListener('touchmove', drag, {passive: true});
+            document.addEventListener('touchend', dragEnd);
+        }
+
+        makeDraggable('hud-thuong', 'drag-handle-thuong');
+        makeDraggable('hud-md5', 'drag-handle-md5');
+
+        fetchAllData();
+        setInterval(fetchAllData, 300);
+    </script>
+</body>
+</html>
